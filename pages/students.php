@@ -49,6 +49,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
+// Handle Delete Student
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete') {
+    $sid = $_POST['student_id'];
+    
+    // First get student name for logging
+    $stmt = $conn->prepare("SELECT student_name FROM students WHERE id = ?");
+    $stmt->bind_param("i", $sid);
+    $stmt->execute();
+    $s_data = $stmt->get_result()->fetch_assoc();
+    $name = $s_data['student_name'] ?? 'Unknown';
+
+    $stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
+    $stmt->bind_param("i", $sid);
+    
+    if ($stmt->execute()) {
+        logActivity($conn, $_SESSION['user_id'], "Delete Student", "Deleted student: $name (ID: $sid).");
+        $message = "<div class='alert alert-success border-0 shadow-sm'>Student and all associated records deleted successfully.</div>";
+    } else {
+        $message = "<div class='alert alert-danger border-0 shadow-sm'>Error deleting student. This may be due to existing records.</div>";
+    }
+}
+
 // Fetch Students
 $students = $conn->query("
     SELECT s.*, c.course_name, u.username as added_by_name 
@@ -133,6 +155,9 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
                                     <a href="student_history.php?id=<?php echo $row['id']; ?>" class="btn btn-outline-dark btn-sm" title="View Ledger"><i class="fas fa-file-invoice"></i></a>
                                     <a href="fees.php?student_id=<?php echo $row['id']; ?>" class="btn btn-outline-primary btn-sm" title="Collect Fees"><i class="fas fa-money-bill-wave"></i></a>
                                     <a href="attendance.php?student_id=<?php echo $row['id']; ?>" class="btn btn-outline-info btn-sm" title="Attendance"><i class="fas fa-calendar-check"></i></a>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="confirmDelete(<?php echo $row['id']; ?>, '<?php echo addslashes($row['student_name']); ?>')" title="Delete Student">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -291,6 +316,19 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 });
+
+function confirmDelete(id, name) {
+    if (confirm("Are you sure you want to delete student '" + name + "'? This will also remove all their fee and attendance records.")) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML = `
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="student_id" value="${id}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
 </script>
 
 <?php include '../includes/footer.php'; ?>
