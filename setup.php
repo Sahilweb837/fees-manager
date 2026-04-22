@@ -71,7 +71,9 @@ try {
     } catch(PDOException $e) {} // Ignore foreign key duplicate errors
 
     // Clear existing users and insert defaults
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
     $pdo->exec("TRUNCATE TABLE `users`;");
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
     $pass_hash = password_hash('password', PASSWORD_DEFAULT);
     
     $stmt = $pdo->prepare("INSERT INTO `users` (`username`, `password`, `role`) VALUES (?, ?, ?)");
