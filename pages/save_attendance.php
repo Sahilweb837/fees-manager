@@ -9,6 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $date = $_POST['date'];
     $time = $_POST['time'];
 
+    $method = isset($_POST['method']) ? $_POST['method'] : 'manual';
+
     // Check if attendance already exists for this day
     $check = $conn->prepare("SELECT id FROM attendance WHERE student_id = ? AND attendance_date = ?");
     $check->bind_param("is", $student_id, $date);
@@ -17,12 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($result->num_rows > 0) {
         // Update
-        $stmt = $conn->prepare("UPDATE attendance SET status = ?, attendance_time = ? WHERE student_id = ? AND attendance_date = ?");
-        $stmt->bind_param("ssis", $status, $time, $student_id, $date);
+        $stmt = $conn->prepare("UPDATE attendance SET status = ?, attendance_time = ?, method = ? WHERE student_id = ? AND attendance_date = ?");
+        $stmt->bind_param("sssis", $status, $time, $method, $student_id, $date);
     } else {
         // Insert
-        $stmt = $conn->prepare("INSERT INTO attendance (student_id, status, attendance_date, attendance_time) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("isss", $student_id, $status, $date, $time);
+        $stmt = $conn->prepare("INSERT INTO attendance (student_id, status, attendance_date, attendance_time, method) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("issss", $student_id, $status, $date, $time, $method);
     }
 
     if ($stmt->execute()) {

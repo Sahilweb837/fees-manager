@@ -39,7 +39,8 @@ CREATE TABLE `students` (
   `email` varchar(100) DEFAULT NULL,
   `college` varchar(255) DEFAULT NULL,
   `course_id` int(11) DEFAULT NULL,
-  `duration` enum('30_days','45_days','1_year') NOT NULL DEFAULT '30_days',
+  `total_fees` decimal(10,2) DEFAULT 0.00,
+  `duration` enum('30_days','45_days','3_months','6_months','1_year') NOT NULL DEFAULT '30_days',
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `added_by` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -89,6 +90,8 @@ CREATE TABLE `fees` (
   `amount` decimal(10,2) NOT NULL,
   `status` enum('paid','unpaid') NOT NULL DEFAULT 'unpaid',
   `collected_by` int(11) DEFAULT NULL,
+  `payment_mode` varchar(50) DEFAULT 'cash',
+  `utr_number` varchar(100) DEFAULT NULL,
   `date_collected` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
