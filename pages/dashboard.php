@@ -3,22 +3,33 @@ require_once '../includes/auth.php';
 include '../includes/header.php';
 
 // Stats Queries
-$total_students = $conn->query("SELECT COUNT(*) as count FROM students WHERE status='active'")->fetch_assoc()['count'];
-$total_courses = $conn->query("SELECT COUNT(*) as count FROM courses")->fetch_assoc()['count'];
+$res_students = $conn->query("SELECT COUNT(*) as count FROM students WHERE status='active'");
+$total_students = ($res_students && $row = $res_students->fetch_assoc()) ? $row['count'] : 0;
 
-// Financial Metrics
-$revenue_data = $conn->query("
-    SELECT 
-        SUM(total_fees) as total_expected,
-        (SELECT SUM(amount) FROM fees) as total_collected
-    FROM students
-")->fetch_assoc();
+$res_courses = $conn->query("SELECT COUNT(*) as count FROM courses");
+$total_courses = ($res_courses && $row = $res_courses->fetch_assoc()) ? $row['count'] : 0;
 
-$expected = $revenue_data['total_expected'] ?? 0;
-$collected = $revenue_data['total_collected'] ?? 0;
-$remaining = $expected - $collected;
+// Financial Metrics (Only for Admins)
+$expected = 0;
+$collected = 0;
+$remaining = 0;
+$collection_rate = 0;
 
-$collection_rate = $expected > 0 ? ($collected / $expected) * 100 : 0;
+if (isAdmin()) {
+    $revenue_query = "
+        SELECT 
+            SUM(total_fees) as total_expected,
+            (SELECT SUM(amount) FROM fees) as total_collected
+        FROM students
+    ";
+    $res_revenue = $conn->query($revenue_query);
+    $revenue_data = ($res_revenue && $row = $res_revenue->fetch_assoc()) ? $row : ['total_expected' => 0, 'total_collected' => 0];
+
+    $expected = $revenue_data['total_expected'] ?? 0;
+    $collected = $revenue_data['total_collected'] ?? 0;
+    $remaining = $expected - $collected;
+    $collection_rate = $expected > 0 ? ($collected / $expected) * 100 : 0;
+}
 
 // Recent Activity
 $recent_logs = $conn->query("
@@ -42,13 +53,17 @@ $recent_fees = $conn->query("
 <div class="animate-up">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold text-dark">Academy Dashboard</h2>
-            <p class="text-muted mb-0">Financial health and enrollment overview.</p>
+            <h2 class="fw-bold text-dark">Welcome, <?php echo htmlspecialchars($_SESSION['username']); ?>!</h2>
+            <div class="d-flex align-items-center mt-1">
+                <span class="badge bg-primary-gradient text-white shadow-sm rounded-pill px-3 me-2">
+                    <i class="fas fa-id-badge me-1"></i> <?php echo strtoupper($_SESSION['business_type'] ?? 'GENERAL'); ?> PANEL
+                </span>
+                <span class="text-muted small"><i class="fas fa-check-circle text-success me-1"></i> Operational Hub</span>
+            </div>
         </div>
-        <div class="text-end">
-            <span class="badge bg-primary-subtle text-primary p-2 px-3 rounded-pill">
-                <i class="fas fa-calendar-alt me-2"></i><?php echo date('F d, Y'); ?>
-            </span>
+        <div class="text-end d-none d-md-block">
+            <div class="fw-bold text-dark"><?php echo date('l, d M Y'); ?></div>
+            <div class="text-muted small">Access: <?php echo strtoupper($_SESSION['role']); ?></div>
         </div>
     </div>
 
@@ -65,6 +80,7 @@ $recent_fees = $conn->query("
                 <p class="text-muted small mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">Active Students</p>
             </div>
         </div>
+        <?php if (isAdmin()): ?>
         <div class="col-md-3">
             <div class="metric-card p-4 h-100">
                 <div class="d-flex justify-content-between mb-3">
@@ -101,6 +117,19 @@ $recent_fees = $conn->query("
                 </div>
             </div>
         </div>
+        <?php else: ?>
+        <div class="col-md-3">
+            <div class="metric-card p-4 h-100">
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="icon-box" style="background: rgba(0, 123, 255, 0.1); color: #007bff;">
+                        <i class="fas fa-book"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold mb-1"><?php echo number_format($total_courses); ?></h3>
+                <p class="text-muted small mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">Available Courses</p>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
     <div class="row g-4">
@@ -122,18 +151,22 @@ $recent_fees = $conn->query("
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php while($fee = $recent_fees->fetch_assoc()): ?>
-                                <tr>
-                                    <td class="ps-0">
-                                        <div class="fw-bold text-dark"><?php echo htmlspecialchars($fee['student_name']); ?></div>
-                                        <small class="text-muted"><?php echo date('d M Y', strtotime($fee['date_collected'])); ?></small>
-                                    </td>
-                                    <td><span class="badge bg-light text-dark border"><?php echo ucfirst($fee['fee_type']); ?></span></td>
-                                    <td class="text-end pe-0">
-                                        <div class="fw-bold text-success">₹<?php echo number_format($fee['amount']); ?></div>
-                                    </td>
-                                </tr>
-                                <?php endwhile; ?>
+                                <?php if($recent_fees): ?>
+                                    <?php while($fee = $recent_fees->fetch_assoc()): ?>
+                                    <tr>
+                                        <td class="ps-0">
+                                            <div class="fw-bold text-dark"><?php echo htmlspecialchars($fee['student_name']); ?></div>
+                                            <small class="text-muted"><?php echo date('d M Y', strtotime($fee['date_collected'])); ?></small>
+                                        </td>
+                                        <td><span class="badge bg-light text-dark border"><?php echo ucfirst($fee['fee_type']); ?></span></td>
+                                        <td class="text-end pe-0">
+                                            <div class="fw-bold text-success">₹<?php echo number_format($fee['amount']); ?></div>
+                                        </td>
+                                    </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="3" class="text-center text-muted">No recent fees found.</td></tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -150,18 +183,22 @@ $recent_fees = $conn->query("
                         <a href="logs.php" class="text-primary small text-decoration-none">Logs <i class="fas fa-arrow-right ms-1"></i></a>
                     </div>
                     <div class="activity-timeline">
-                        <?php while($log = $recent_logs->fetch_assoc()): ?>
-                        <div class="d-flex mb-3">
-                            <div class="flex-shrink-0 me-3">
-                                <div class="rounded-circle bg-light border" style="width: 10px; height: 10px; margin-top: 5px;"></div>
+                        <?php if($recent_logs): ?>
+                            <?php while($log = $recent_logs->fetch_assoc()): ?>
+                            <div class="d-flex mb-3">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="rounded-circle bg-light border" style="width: 10px; height: 10px; margin-top: 5px;"></div>
+                                </div>
+                                <div>
+                                    <div class="fw-bold small text-dark"><?php echo htmlspecialchars($log['action']); ?></div>
+                                    <div class="text-muted small" style="font-size: 11px;"><?php echo htmlspecialchars($log['details']); ?></div>
+                                    <small class="text-muted" style="font-size: 10px;"><?php echo date('h:i A', strtotime($log['created_at'])); ?> by <?php echo htmlspecialchars($log['username']); ?></small>
+                                </div>
                             </div>
-                            <div>
-                                <div class="fw-bold small text-dark"><?php echo htmlspecialchars($log['action']); ?></div>
-                                <div class="text-muted small" style="font-size: 11px;"><?php echo htmlspecialchars($log['details']); ?></div>
-                                <small class="text-muted" style="font-size: 10px;"><?php echo date('h:i A', strtotime($log['created_at'])); ?> by <?php echo htmlspecialchars($log['username']); ?></small>
-                            </div>
-                        </div>
-                        <?php endwhile; ?>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <div class="text-center text-muted">No recent activity found.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

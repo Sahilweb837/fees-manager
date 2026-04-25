@@ -1,194 +1,199 @@
--- phpMyAdmin SQL Dump
--- Database: `fee_management_system`
+-- =====================================================================
+-- FMS ENTERPRISE — Multi-Industry Management System
+-- Complete Database Schema v2.0
+-- Industries: School, College, Restaurant, Hotel, Shop, Clinic
+-- =====================================================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
 SET time_zone = "+00:00";
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
+-- Drop old tables safely (order matters for FK)
+DROP TABLE IF EXISTS `activity_logs`;
+DROP TABLE IF EXISTS `attendance`;
+DROP TABLE IF EXISTS `fees`;
+DROP TABLE IF EXISTS `expenses`;
+DROP TABLE IF EXISTS `students`;
+DROP TABLE IF EXISTS `courses`;
+DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `branches`;
 
--- --------------------------------------------------------
-
-CREATE DATABASE IF NOT EXISTS `fees_management` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE `fees_management`;
-
---
--- Table structure for table `courses`
---
-
-CREATE TABLE `courses` (
-  `id` int(11) NOT NULL,
-  `course_name` varchar(100) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+-- =====================================================================
+-- Table: branches
+-- Multi-tenant core — each branch = one business center
+-- =====================================================================
+CREATE TABLE `branches` (
+  `id`            INT(11)       NOT NULL AUTO_INCREMENT,
+  `branch_name`   VARCHAR(120)  NOT NULL,
+  `business_type` ENUM('school','college','restaurant','hotel','shop','dispensary','inventory','company','other') NOT NULL DEFAULT 'other',
+  `location`      VARCHAR(255)  DEFAULT NULL,
+  `phone`         VARCHAR(20)   DEFAULT NULL,
+  `email`         VARCHAR(100)  DEFAULT NULL,
+  `is_active`     TINYINT(1)    NOT NULL DEFAULT 1,
+  `created_at`    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Table structure for table `students`
---
-
-CREATE TABLE `students` (
-  `id` int(11) NOT NULL,
-  `student_name` varchar(100) NOT NULL,
-  `father_name` varchar(100) DEFAULT NULL,
-  `contact` varchar(20) NOT NULL,
-  `email` varchar(100) DEFAULT NULL,
-  `college` varchar(255) DEFAULT NULL,
-  `course_id` int(11) DEFAULT NULL,
-  `total_fees` decimal(10,2) DEFAULT 0.00,
-  `duration` enum('30_days','45_days','3_months','6_months','1_year') NOT NULL DEFAULT '30_days',
-  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
-  `added_by` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `attendance`
---
-
-CREATE TABLE `attendance` (
-  `id` int(11) NOT NULL,
-  `student_id` int(11) NOT NULL,
-  `status` enum('present','absent') NOT NULL DEFAULT 'present',
-  `attendance_date` date NOT NULL,
-  `attendance_time` time NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `activity_logs`
---
-
-CREATE TABLE `activity_logs` (
-  `id` int(11) NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `action` varchar(255) NOT NULL,
-  `details` text DEFAULT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `fees`
---
-
-CREATE TABLE `fees` (
-  `id` int(11) NOT NULL,
-  `student_id` int(11) NOT NULL,
-  `fee_type` enum('monthly','registration','exam') NOT NULL,
-  `amount` decimal(10,2) NOT NULL,
-  `status` enum('paid','unpaid') NOT NULL DEFAULT 'unpaid',
-  `collected_by` int(11) DEFAULT NULL,
-  `payment_mode` varchar(50) DEFAULT 'cash',
-  `utr_number` varchar(100) DEFAULT NULL,
-  `date_collected` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `users`
---
-
+-- =====================================================================
+-- Table: users
+-- All system users. branch_id = NULL means universal (super_admin).
+-- employee_id is auto-generated per business_type on creation.
+-- =====================================================================
 CREATE TABLE `users` (
-  `id` int(11) NOT NULL,
-  `username` varchar(50) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `role` enum('super_admin','admin','employee') NOT NULL DEFAULT 'employee',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `id`             INT(11)      NOT NULL AUTO_INCREMENT,
+  `employee_id`    VARCHAR(50)  DEFAULT NULL COMMENT 'e.g. SCH-ADM-001, REST-EMP-042',
+  `full_name`      VARCHAR(100) DEFAULT NULL,
+  `username`       VARCHAR(50)  NOT NULL,
+  `password`       VARCHAR(255) NOT NULL COMMENT 'Bcrypt hash',
+  `plain_password` VARCHAR(255) DEFAULT NULL COMMENT 'Stored for admin reference only',
+  `role`           ENUM('super_admin','admin','employee') NOT NULL DEFAULT 'employee',
+  `branch_id`      INT(11)      DEFAULT NULL COMMENT 'NULL = universal (super_admin)',
+  `created_by`     INT(11)      DEFAULT NULL COMMENT 'Who created this user',
+  `is_active`      TINYINT(1)   NOT NULL DEFAULT 1,
+  `created_at`     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`),
+  KEY `branch_id` (`branch_id`),
+  CONSTRAINT `users_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `users`
---
+-- =====================================================================
+-- Table: courses
+-- Service/course catalog. branch_id links to specific branch.
+-- Super admin creates global; branch admin creates branch-specific.
+-- =====================================================================
+CREATE TABLE `courses` (
+  `id`               INT(11)       NOT NULL AUTO_INCREMENT,
+  `branch_id`        INT(11)       DEFAULT NULL COMMENT 'NULL = available to all',
+  `course_name`      VARCHAR(150)  NOT NULL COMMENT 'Course / Plan / Package / Menu Item',
+  `course_code`      VARCHAR(50)   DEFAULT NULL,
+  `total_fee`        DECIMAL(10,2) DEFAULT 0.00,
+  `monthly_fee`      DECIMAL(10,2) DEFAULT 0.00,
+  `registration_fee` DECIMAL(10,2) DEFAULT 0.00,
+  `duration_months`  INT(4)        DEFAULT NULL,
+  `is_active`        TINYINT(1)    NOT NULL DEFAULT 1,
+  `created_at`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `branch_id` (`branch_id`),
+  CONSTRAINT `courses_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `users` (`id`, `username`, `password`, `role`, `created_at`) VALUES
-(1, 'superadmin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin', '2023-10-27 10:00:00'),
-(2, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', '2023-10-27 10:00:00'),
-(3, 'employee', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'employee', '2023-10-27 10:00:00');
+-- =====================================================================
+-- Table: students
+-- Generic entity: Student / Patient / Guest / Customer / Employee.
+-- entity_id is auto-generated (e.g. SCH-2025-0001, REST-ORD-0001).
+-- industry_field_1/2/ref adapt labels to business context.
+-- =====================================================================
+CREATE TABLE `students` (
+  `id`               INT(11)       NOT NULL AUTO_INCREMENT,
+  `entity_id`        VARCHAR(30)   DEFAULT NULL COMMENT 'e.g. SCH-2025-0001, HTL-GST-0042',
+  `student_name`     VARCHAR(100)  NOT NULL COMMENT 'Student / Patient / Guest / Customer name',
+  `father_name`      VARCHAR(100)  DEFAULT NULL COMMENT 'Guardian / Doctor / Agent / Manager',
+  `contact`          VARCHAR(20)   NOT NULL,
+  `email`            VARCHAR(100)  DEFAULT NULL,
+  `address`          TEXT          DEFAULT NULL,
+  `college`          VARCHAR(255)  DEFAULT NULL COMMENT 'School / College / Hotel / Company / Source',
+  `branch_id`        INT(11)       DEFAULT NULL,
+  `course_id`        INT(11)       DEFAULT NULL,
+  `total_fees`       DECIMAL(10,2) DEFAULT 0.00,
+  `duration`         ENUM('30_days','45_days','3_months','6_months','1_year','custom') NOT NULL DEFAULT '30_days',
+  `status`           ENUM('active','inactive','completed') NOT NULL DEFAULT 'active',
+  `industry_field_1` VARCHAR(100)  DEFAULT NULL COMMENT 'Class/Semester/Room Type/Dept/Table',
+  `industry_field_2` VARCHAR(100)  DEFAULT NULL COMMENT 'Section/Year/Room No/SKU/Order ID',
+  `industry_ref`     VARCHAR(255)  DEFAULT NULL COMMENT 'Extra contextual reference',
+  `gender`           ENUM('male','female','other')  DEFAULT NULL,
+  `dob`              DATE          DEFAULT NULL,
+  `added_by`         INT(11)       NOT NULL,
+  `created_at`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `entity_id` (`entity_id`),
+  KEY `branch_id` (`branch_id`),
+  KEY `course_id` (`course_id`),
+  KEY `added_by` (`added_by`),
+  CONSTRAINT `students_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `students_ibfk_2` FOREIGN KEY (`course_id`)  REFERENCES `courses` (`id`)  ON DELETE SET NULL,
+  CONSTRAINT `students_ibfk_3` FOREIGN KEY (`added_by`)   REFERENCES `users` (`id`)    ON DELETE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Indexes for dumped tables
---
+-- =====================================================================
+-- Table: fees
+-- Payment transactions for all industry types.
+-- =====================================================================
+CREATE TABLE `fees` (
+  `id`             INT(11)       NOT NULL AUTO_INCREMENT,
+  `student_id`     INT(11)       NOT NULL,
+  `fee_type`       ENUM('monthly','registration','exam','full_payment','service','advance','other') NOT NULL DEFAULT 'monthly',
+  `amount`         DECIMAL(10,2) NOT NULL,
+  `status`         ENUM('paid','unpaid','pending','refunded') NOT NULL DEFAULT 'paid',
+  `collected_by`   INT(11)       DEFAULT NULL,
+  `payment_mode`   ENUM('cash','online','upi','cheque','card','neft','other') NOT NULL DEFAULT 'cash',
+  `utr_number`     VARCHAR(100)  DEFAULT NULL COMMENT 'UPI/Cheque/NEFT reference',
+  `notes`          TEXT          DEFAULT NULL,
+  `date_collected` TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `student_id` (`student_id`),
+  KEY `collected_by` (`collected_by`),
+  CONSTRAINT `fees_ibfk_1` FOREIGN KEY (`student_id`)   REFERENCES `students` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fees_ibfk_2` FOREIGN KEY (`collected_by`) REFERENCES `users` (`id`)   ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-ALTER TABLE `courses`
-  ADD PRIMARY KEY (`id`);
+-- =====================================================================
+-- Table: attendance
+-- =====================================================================
+CREATE TABLE `attendance` (
+  `id`              INT(11) NOT NULL AUTO_INCREMENT,
+  `student_id`      INT(11) NOT NULL,
+  `status`          ENUM('present','absent','late') NOT NULL DEFAULT 'present',
+  `method`          ENUM('manual','biometric') NOT NULL DEFAULT 'manual',
+  `attendance_date` DATE    NOT NULL,
+  `attendance_time` TIME    NOT NULL,
+  `noted_by`        INT(11) DEFAULT NULL,
+  `created_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `student_id` (`student_id`),
+  CONSTRAINT `attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-ALTER TABLE `students`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `added_by` (`added_by`),
-  ADD KEY `course_id` (`course_id`);
+-- =====================================================================
+-- Table: expenses
+-- Branch-specific operational expenditures
+-- =====================================================================
+CREATE TABLE `expenses` (
+  `id`           INT(11)       NOT NULL AUTO_INCREMENT,
+  `branch_id`    INT(11)       NOT NULL,
+  `amount`       DECIMAL(10,2) NOT NULL,
+  `category`     VARCHAR(100)  NOT NULL,
+  `description`  TEXT,
+  `expense_date` DATE          NOT NULL,
+  `added_by`     INT(11)       NOT NULL,
+  `created_at`   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `branch_id` (`branch_id`),
+  KEY `added_by` (`added_by`),
+  CONSTRAINT `expenses_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `expenses_ibfk_2` FOREIGN KEY (`added_by`) REFERENCES `users` (`id`) ON DELETE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-ALTER TABLE `attendance`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `student_id` (`student_id`);
+-- =====================================================================
+-- Table: activity_logs
+-- Audit trail for all user actions
+-- =====================================================================
+CREATE TABLE `activity_logs` (
+  `id`         INT(11)      NOT NULL AUTO_INCREMENT,
+  `user_id`    INT(11)      NOT NULL,
+  `action`     VARCHAR(255) NOT NULL,
+  `details`    TEXT         DEFAULT NULL,
+  `ip_address` VARCHAR(45)  DEFAULT NULL,
+  `created_at` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-ALTER TABLE `activity_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
-
-ALTER TABLE `fees`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `student_id` (`student_id`),
-  ADD KEY `collected_by` (`collected_by`);
-
-ALTER TABLE `users`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `username` (`username`);
-
---
--- AUTO_INCREMENT for dumped tables
---
-
-ALTER TABLE `courses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
-ALTER TABLE `students`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
-ALTER TABLE `attendance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
-ALTER TABLE `activity_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
-ALTER TABLE `fees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
-ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-
---
--- Constraints for dumped tables
---
-
-ALTER TABLE `students`
-  ADD CONSTRAINT `students_ibfk_1` FOREIGN KEY (`added_by`) REFERENCES `users` (`id`) ON DELETE NO ACTION,
-  ADD CONSTRAINT `students_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE SET NULL;
-
-ALTER TABLE `attendance`
-  ADD CONSTRAINT `attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE;
-
-ALTER TABLE `activity_logs`
-  ADD CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
-
-ALTER TABLE `fees`
-  ADD CONSTRAINT `fees_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fees_ibfk_2` FOREIGN KEY (`collected_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+-- =====================================================================
+-- Default Super Admin (password: admin123)
+-- =====================================================================
+INSERT INTO `users` (`id`, `employee_id`, `full_name`, `username`, `password`, `plain_password`, `role`, `branch_id`) VALUES
+(1, 'SUP-001', 'Super Administrator', 'superadmin', '$2y$10$TKh8H1.PfunDj14wEZpLAuKs5ton7X0BCqzOQmPXa/4q4UqBSvEJi', 'admin123', 'super_admin', NULL);
 
 COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

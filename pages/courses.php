@@ -80,30 +80,34 @@ $courses = $conn->query("SELECT * FROM courses ORDER BY course_name ASC");
                         </tr>
                     </thead>
                     <tbody>
-                        <?php while($row = $courses->fetch_assoc()): ?>
-                        <tr>
-                            <td><?php echo $row['id']; ?></td>
-                            <td class="fw-bold"><?php echo htmlspecialchars($row['course_name']); ?></td>
-                            <td class="text-primary fw-bold">₹<?php echo number_format($row['total_fee'], 2); ?></td>
-                            <td class="text-success">₹<?php echo number_format($row['monthly_fee'], 2); ?></td>
-                            <td class="text-info">₹<?php echo number_format($row['registration_fee'], 2); ?></td>
-                            <td><?php echo date('d M Y', strtotime($row['created_at'])); ?></td>
-                            <td class="text-end">
-                                <button class="btn btn-outline-warning btn-sm edit-course-btn" 
-                                    data-id="<?php echo $row['id']; ?>"
-                                    data-name="<?php echo htmlspecialchars($row['course_name']); ?>"
-                                    data-total="<?php echo $row['total_fee']; ?>"
-                                    data-monthly="<?php echo $row['monthly_fee']; ?>"
-                                    data-reg="<?php echo $row['registration_fee']; ?>"
-                                    data-bs-toggle="modal" data-bs-target="#editCourseModal">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <a href="?delete=<?php echo $row['id']; ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure?')">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
+                        <?php if($courses): ?>
+                            <?php while($row = $courses->fetch_assoc()): ?>
+                            <tr>
+                                <td><?php echo $row['id']; ?></td>
+                                <td class="fw-bold"><?php echo htmlspecialchars($row['course_name']); ?></td>
+                                <td class="text-primary fw-bold">₹<?php echo number_format($row['total_fee'] ?? 0, 2); ?></td>
+                                <td class="text-success">₹<?php echo number_format($row['monthly_fee'] ?? 0, 2); ?></td>
+                                <td class="text-info">₹<?php echo number_format($row['registration_fee'] ?? 0, 2); ?></td>
+                                <td><?php echo date('d M Y', strtotime($row['created_at'])); ?></td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-warning btn-sm edit-course-btn" 
+                                        data-id="<?php echo $row['id']; ?>"
+                                        data-name="<?php echo htmlspecialchars($row['course_name']); ?>"
+                                        data-total="<?php echo $row['total_fee'] ?? 0; ?>"
+                                        data-monthly="<?php echo $row['monthly_fee'] ?? 0; ?>"
+                                        data-reg="<?php echo $row['registration_fee'] ?? 0; ?>"
+                                        data-bs-toggle="modal" data-bs-target="#editCourseModal">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <a href="?delete=<?php echo $row['id']; ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure?')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="7" class="text-center text-muted">No courses found or database error.</td></tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>

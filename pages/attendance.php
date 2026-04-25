@@ -18,7 +18,7 @@ $stats_query = $conn->query("
     FROM attendance 
     WHERE attendance_date = '$date'
 ");
-$stats = $stats_query->fetch_assoc();
+$stats = ($stats_query && $row = $stats_query->fetch_assoc()) ? $row : ['total' => 0, 'present' => 0, 'absent' => 0, 'leaves' => 0];
 
 // Fetch Students with Attendance Status
 $query = "
@@ -89,12 +89,14 @@ $students = $conn->query($query);
                         <select name="course_id" class="form-select border-start-0 rounded-end-pill" onchange="this.form.submit()">
                             <option value="">All Courses</option>
                             <?php 
-                            $courses->data_seek(0);
-                            while($c = $courses->fetch_assoc()): ?>
-                                <option value="<?php echo $c['id']; ?>" <?php echo $course_filter == $c['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($c['course_name']); ?>
-                                </option>
-                            <?php endwhile; ?>
+                            if ($courses):
+                                $courses->data_seek(0);
+                                while($c = $courses->fetch_assoc()): ?>
+                                    <option value="<?php echo $c['id']; ?>" <?php echo $course_filter == $c['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($c['course_name']); ?>
+                                    </option>
+                                <?php endwhile; 
+                            endif; ?>
                         </select>
                     </div>
                 </div>
@@ -136,58 +138,62 @@ $students = $conn->query($query);
                     <tbody id="attendanceBody">
                         <?php 
                         $count = 0;
-                        while($row = $students->fetch_assoc()): 
-                            $count++;
-                            $hiddenClass = ($count > 15) ? 'lazy-row d-none' : '';
-                        ?>
-                        <tr class="student-row <?php echo $hiddenClass; ?>" data-id="<?php echo $row['id']; ?>">
-                            <td class="ps-4">
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-sm bg-primary-gradient text-white rounded-circle me-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px; font-weight: 600;">
-                                        <?php echo strtoupper(substr($row['student_name'], 0, 1)); ?>
+                        if ($students):
+                            while($row = $students->fetch_assoc()): 
+                                $count++;
+                                $hiddenClass = ($count > 15) ? 'lazy-row d-none' : '';
+                            ?>
+                            <tr class="student-row <?php echo $hiddenClass; ?>" data-id="<?php echo $row['id']; ?>">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-sm bg-primary-gradient text-white rounded-circle me-3 d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px; font-weight: 600;">
+                                            <?php echo strtoupper(substr($row['student_name'], 0, 1)); ?>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($row['student_name']); ?></div>
+                                            <div class="text-muted small"><i class="fas fa-phone me-1" style="font-size: 10px;"></i><?php echo $row['contact']; ?></div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($row['student_name']); ?></div>
-                                        <div class="text-muted small"><i class="fas fa-phone me-1" style="font-size: 10px;"></i><?php echo $row['contact']; ?></div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border fw-medium"><?php echo htmlspecialchars($row['course_name'] ?? 'N/A'); ?></span>
+                                </td>
+                                <td class="attendance-time-<?php echo $row['id']; ?>">
+                                    <?php if($row['attendance_status'] == 'present'): ?>
+                                        <span class="text-success small fw-bold"><i class="fas fa-clock me-1"></i><?php echo date('h:i A', strtotime($row['attendance_time'])); ?> <?php if($row['method'] == 'biometric'): ?><i class="fas fa-fingerprint ms-1 text-primary" title="Biometric"></i><?php endif; ?></span>
+                                    <?php elseif($row['attendance_status'] == 'leave'): ?>
+                                        <span class="text-warning small fw-bold"><i class="fas fa-sign-out-alt me-1"></i>On Leave</span>
+                                    <?php else: ?>
+                                        <span class="text-muted small">--:--</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-center pe-4">
+                                    <div class="btn-group p-1 bg-light rounded-pill border shadow-sm attendance-group" data-student-id="<?php echo $row['id']; ?>">
+                                        <button type="button" 
+                                            title="Present"
+                                            class="btn btn-sm rounded-pill px-3 mark-btn <?php echo $row['attendance_status'] == 'present' ? 'btn-success' : 'btn-light'; ?>" 
+                                            onclick="markAttendance(<?php echo $row['id']; ?>, 'present')">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button type="button" 
+                                            title="Absent"
+                                            class="btn btn-sm rounded-pill px-3 mark-btn <?php echo $row['attendance_status'] == 'absent' ? 'btn-danger' : 'btn-light'; ?>" 
+                                            onclick="markAttendance(<?php echo $row['id']; ?>, 'absent')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        <button type="button" 
+                                            title="Leave"
+                                            class="btn btn-sm rounded-pill px-3 mark-btn <?php echo $row['attendance_status'] == 'leave' ? 'btn-warning text-white' : 'btn-light'; ?>" 
+                                            onclick="markAttendance(<?php echo $row['id']; ?>, 'leave')">
+                                            <i class="fas fa-calendar-minus"></i>
+                                        </button>
                                     </div>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge bg-light text-dark border fw-medium"><?php echo htmlspecialchars($row['course_name'] ?? 'N/A'); ?></span>
-                            </td>
-                            <td class="attendance-time-<?php echo $row['id']; ?>">
-                                <?php if($row['attendance_status'] == 'present'): ?>
-                                    <span class="text-success small fw-bold"><i class="fas fa-clock me-1"></i><?php echo date('h:i A', strtotime($row['attendance_time'])); ?> <?php if($row['method'] == 'biometric'): ?><i class="fas fa-fingerprint ms-1 text-primary" title="Biometric"></i><?php endif; ?></span>
-                                <?php elseif($row['attendance_status'] == 'leave'): ?>
-                                    <span class="text-warning small fw-bold"><i class="fas fa-sign-out-alt me-1"></i>On Leave</span>
-                                <?php else: ?>
-                                    <span class="text-muted small">--:--</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="text-center pe-4">
-                                <div class="btn-group p-1 bg-light rounded-pill border shadow-sm attendance-group" data-student-id="<?php echo $row['id']; ?>">
-                                    <button type="button" 
-                                        title="Present"
-                                        class="btn btn-sm rounded-pill px-3 mark-btn <?php echo $row['attendance_status'] == 'present' ? 'btn-success' : 'btn-light'; ?>" 
-                                        onclick="markAttendance(<?php echo $row['id']; ?>, 'present')">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    <button type="button" 
-                                        title="Absent"
-                                        class="btn btn-sm rounded-pill px-3 mark-btn <?php echo $row['attendance_status'] == 'absent' ? 'btn-danger' : 'btn-light'; ?>" 
-                                        onclick="markAttendance(<?php echo $row['id']; ?>, 'absent')">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                    <button type="button" 
-                                        title="Leave"
-                                        class="btn btn-sm rounded-pill px-3 mark-btn <?php echo $row['attendance_status'] == 'leave' ? 'btn-warning text-white' : 'btn-light'; ?>" 
-                                        onclick="markAttendance(<?php echo $row['id']; ?>, 'leave')">
-                                        <i class="fas fa-calendar-minus"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
+                                </td>
+                            </tr>
+                            <?php endwhile; 
+                        else: ?>
+                            <tr><td colspan="4" class="text-center text-muted py-4">No students found or database error.</td></tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>

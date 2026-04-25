@@ -29,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         
         if ($stmt->execute()) {
             $fee_id = $conn->insert_id;
-            $student_name_res = $conn->query("SELECT student_name FROM students WHERE id = $student_id")->fetch_assoc();
-            $student_name = $student_name_res['student_name'];
+            $student_name_res = $conn->query("SELECT student_name FROM students WHERE id = $student_id");
+            $student_name = ($student_name_res && $row = $student_name_res->fetch_assoc()) ? $row['student_name'] : 'Unknown';
             logActivity($conn, $_SESSION['user_id'], "Collect Fee", "Collected $fee_type fee of ₹$amount from $student_name.");
             $message = "<div class='alert alert-success border-0 shadow HUD-alert animate-up'>
                 <i class='fas fa-check-circle me-2'></i> ₹$amount received from $student_name! 
@@ -42,21 +42,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
-// Stats for Header
-$stats_res = $conn->query("
-    SELECT 
-        (SELECT SUM(amount) FROM fees WHERE fee_type IN ('monthly', 'full_payment')) as course_fees_collected,
-        (SELECT SUM(amount) FROM fees) as total_revenue,
-        (SELECT SUM(total_fees) FROM students) as total_expected,
-        (SELECT COUNT(*) FROM fees WHERE DATE(date_collected) = CURRENT_DATE()) as today_count,
-        (SELECT SUM(amount) FROM fees WHERE DATE(date_collected) = CURRENT_DATE()) as today_amount
-")->fetch_assoc();
+// Stats for Header (Only for Admins)
+$total_collected = 0;
+$total_revenue = 0;
+$total_expected = 0;
+$today_amount = 0;
+$pending = 0;
+$today_count = 0;
 
-$total_collected = $stats_res['course_fees_collected'] ?? 0;
-$total_revenue = $stats_res['total_revenue'] ?? 0;
-$total_expected = $stats_res['total_expected'] ?? 0;
-$today_amount = $stats_res['today_amount'] ?? 0;
-$pending = $total_expected - $total_collected;
+if (isAdmin()) {
+    $stats_res_query = $conn->query("
+        SELECT 
+            (SELECT SUM(amount) FROM fees WHERE fee_type IN ('monthly', 'full_payment')) as course_fees_collected,
+            (SELECT SUM(amount) FROM fees) as total_revenue,
+            (SELECT SUM(total_fees) FROM students) as total_expected,
+            (SELECT COUNT(*) FROM fees WHERE DATE(date_collected) = CURRENT_DATE()) as today_count,
+            (SELECT SUM(amount) FROM fees WHERE DATE(date_collected) = CURRENT_DATE()) as today_amount
+    ");
+    $stats_res = ($stats_res_query && $row = $stats_res_query->fetch_assoc()) ? $row : ['course_fees_collected' => 0, 'total_revenue' => 0, 'total_expected' => 0, 'today_count' => 0, 'today_amount' => 0];
+
+    $total_collected = $stats_res['course_fees_collected'] ?? 0;
+    $total_revenue = $stats_res['total_revenue'] ?? 0;
+    $total_expected = $stats_res['total_expected'] ?? 0;
+    $today_amount = $stats_res['today_amount'] ?? 0;
+    $today_count = $stats_res['today_count'] ?? 0;
+    $pending = $total_expected - $total_collected;
+}
 
 // Fetch Students for Dropdown
 $students_query = $conn->query("
@@ -69,7 +80,7 @@ $students_query = $conn->query("
 ");
 
 $students_list = [];
-while($s = $students_query->fetch_assoc()) { $students_list[] = $s; }
+while($students_query && $s = $students_query->fetch_assoc()) { $students_list[] = $s; }
 
 // Fetch Fee History with College & Course
 $fees = $conn->query("
@@ -83,6 +94,7 @@ $fees = $conn->query("
 ?>
 
 <div class="animate-up">
+    <?php if (isAdmin()): ?>
     <!-- Premium HUD Header -->
     <div class="row mb-4 g-3">
         <div class="col-md-3">
@@ -112,10 +124,11 @@ $fees = $conn->query("
             <div class="HUD-card p-3 border-start border-4 border-success">
                 <div class="small text-muted text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 1px;">Today's Income</div>
                 <div class="h4 fw-bold mb-0 text-success">₹<?php echo number_format($today_amount); ?></div>
-                <div class="text-muted small mt-1" style="font-size: 11px;"><i class="fas fa-receipt me-1"></i><?php echo $stats_res['today_count']; ?> Deposits today</div>
+                <div class="text-muted small mt-1" style="font-size: 11px;"><i class="fas fa-receipt me-1"></i><?php echo $today_count; ?> Deposits today</div>
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <?php echo $message; ?>
 
@@ -237,48 +250,52 @@ $fees = $conn->query("
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php while($row = $fees->fetch_assoc()): ?>
-                                <tr class="ledger-row">
-                                    <td class="ps-4">
-                                        <div class="fw-bold text-primary">#<?php echo $row['id']; ?></div>
-                                        <small class="text-muted" style="font-size: 10px;"><?php echo date('d M, h:i A', strtotime($row['date_collected'])); ?></small>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($row['student_name']); ?></div>
-                                        <div class="text-muted small" style="font-size: 11px;">
-                                            <span class="badge bg-light text-dark border-0 p-0 me-2"><i class="fas fa-university me-1 text-primary"></i><?php echo htmlspecialchars($row['college'] ?? 'N/A'); ?></span>
-                                            <span class="badge bg-light text-dark border-0 p-0"><i class="fas fa-book-open me-1 text-info"></i><?php echo htmlspecialchars($row['course_name'] ?? 'N/A'); ?></span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge rounded-pill <?php 
-                                            echo match($row['fee_type']) {
-                                                'monthly' => 'bg-success-subtle text-success',
-                                                'registration' => 'bg-primary-subtle text-primary',
-                                                'exam' => 'bg-warning-subtle text-warning',
-                                                default => 'bg-secondary-subtle text-secondary'
-                                            };
-                                        ?> px-3 py-1"><?php echo ucfirst($row['fee_type']); ?></span>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="me-2">
-                                                <?php if($row['payment_mode'] == 'cash'): ?>
-                                                    <i class="fas fa-money-bill text-success"></i>
-                                                <?php else: ?>
-                                                    <i class="fas fa-globe text-primary"></i>
-                                                <?php endif; ?>
+                                <?php if($fees): ?>
+                                    <?php while($row = $fees->fetch_assoc()): ?>
+                                    <tr class="ledger-row">
+                                        <td class="ps-4">
+                                            <div class="fw-bold text-primary">#<?php echo $row['id']; ?></div>
+                                            <small class="text-muted" style="font-size: 10px;"><?php echo date('d M, h:i A', strtotime($row['date_collected'])); ?></small>
+                                        </td>
+                                        <td>
+                                            <div class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($row['student_name']); ?></div>
+                                            <div class="text-muted small" style="font-size: 11px;">
+                                                <span class="badge bg-light text-dark border-0 p-0 me-2"><i class="fas fa-university me-1 text-primary"></i><?php echo htmlspecialchars($row['college'] ?? 'N/A'); ?></span>
+                                                <span class="badge bg-light text-dark border-0 p-0"><i class="fas fa-book-open me-1 text-info"></i><?php echo htmlspecialchars($row['course_name'] ?? 'N/A'); ?></span>
                                             </div>
-                                            <div class="small fw-bold text-uppercase"><?php echo $row['payment_mode']; ?></div>
-                                        </div>
-                                        <?php if($row['utr_number']): ?><div class="text-muted" style="font-size: 9px;"><?php echo $row['utr_number']; ?></div><?php endif; ?>
-                                    </td>
-                                    <td class="pe-4 text-end">
-                                        <div class="fw-bold text-dark h6 mb-1">₹<?php echo number_format($row['amount']); ?></div>
-                                        <a href="invoice.php?id=<?php echo $row['id']; ?>" class="btn btn-link btn-sm text-primary p-0 text-decoration-none" target="_blank" style="font-size: 10px;"><i class="fas fa-print me-1"></i>Receipt</a>
-                                    </td>
-                                </tr>
-                                <?php endwhile; ?>
+                                        </td>
+                                        <td>
+                                            <span class="badge rounded-pill <?php 
+                                                echo match($row['fee_type']) {
+                                                    'monthly' => 'bg-success-subtle text-success',
+                                                    'registration' => 'bg-primary-subtle text-primary',
+                                                    'exam' => 'bg-warning-subtle text-warning',
+                                                    default => 'bg-secondary-subtle text-secondary'
+                                                };
+                                            ?> px-3 py-1"><?php echo ucfirst($row['fee_type']); ?></span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-2">
+                                                    <?php if($row['payment_mode'] == 'cash'): ?>
+                                                        <i class="fas fa-money-bill text-success"></i>
+                                                    <?php else: ?>
+                                                        <i class="fas fa-globe text-primary"></i>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="small fw-bold text-uppercase"><?php echo $row['payment_mode']; ?></div>
+                                            </div>
+                                            <?php if($row['utr_number']): ?><div class="text-muted" style="font-size: 9px;"><?php echo $row['utr_number']; ?></div><?php endif; ?>
+                                        </td>
+                                        <td class="pe-4 text-end">
+                                            <div class="fw-bold text-dark h6 mb-1">₹<?php echo number_format($row['amount']); ?></div>
+                                            <a href="invoice.php?id=<?php echo $row['id']; ?>" class="btn btn-link btn-sm text-primary p-0 text-decoration-none" target="_blank" style="font-size: 10px;"><i class="fas fa-print me-1"></i>Receipt</a>
+                                        </td>
+                                    </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="5" class="text-center text-muted py-4">No payments found or database error.</td></tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>

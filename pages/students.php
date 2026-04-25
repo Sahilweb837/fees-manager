@@ -4,6 +4,21 @@ include '../includes/header.php';
 
 $message = "";
 
+// Determine industry context
+$btype = $_SESSION['business_type'] ?? 'other';
+$industry_labels = [
+    'school'      => ['entity'=>'Student',  'field1_label'=>'Class',        'field2_label'=>'Section',    'ref_label'=>'Father / Guardian', 'inst_label'=>'School Name'],
+    'college'     => ['entity'=>'Student',  'field1_label'=>'Semester',     'field2_label'=>'Year',       'ref_label'=>'Father / Guardian', 'inst_label'=>'College / University'],
+    'dispensary'  => ['entity'=>'Patient',  'field1_label'=>'Patient Type', 'field2_label'=>'Patient ID', 'ref_label'=>'Referred By (Doctor)', 'inst_label'=>'Referred From (Clinic)'],
+    'shop'        => ['entity'=>'Customer', 'field1_label'=>'Category',     'field2_label'=>'Item SKU',   'ref_label'=>'Sales Person',       'inst_label'=>'Source / Lead'],
+    'hotel'       => ['entity'=>'Guest',    'field1_label'=>'Room Type',    'field2_label'=>'Room No.',   'ref_label'=>'Booking Agent',      'inst_label'=>'Check-in Source'],
+    'restaurant'  => ['entity'=>'Customer', 'field1_label'=>'Table / Order','field2_label'=>'Order ID',  'ref_label'=>'Served By',          'inst_label'=>'Reservation Source'],
+    'inventory'   => ['entity'=>'Client',   'field1_label'=>'Category',     'field2_label'=>'Item Code',  'ref_label'=>'Account Manager',    'inst_label'=>'Company / Org'],
+    'company'     => ['entity'=>'Employee', 'field1_label'=>'Department',   'field2_label'=>'Employee ID','ref_label'=>'Reporting Manager',  'inst_label'=>'Company Branch'],
+    'other'       => ['entity'=>'Client',   'field1_label'=>'Category',     'field2_label'=>'Reference',  'ref_label'=>'Contact Person',     'inst_label'=>'Organization'],
+];
+$lbl = $industry_labels[$btype] ?? $industry_labels['other'];
+
 // Handle Add Student
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'add') {
     $name = $_POST['student_name'];
@@ -14,14 +29,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $course_id = $_POST['course_id'];
     $total_fees = $_POST['total_fees'];
     $duration = $_POST['duration'];
+    $f1 = $_POST['industry_field_1'] ?? '';
+    $f2 = $_POST['industry_field_2'] ?? '';
+    $ref = $_POST['industry_ref'] ?? '';
     
-    $stmt = $conn->prepare("INSERT INTO students (student_name, father_name, contact, email, college, course_id, total_fees, duration, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssssidsi", $name, $father, $contact, $email, $college, $course_id, $total_fees, $duration, $_SESSION['user_id']);
+    $stmt = $conn->prepare("INSERT INTO students (student_name, father_name, contact, email, college, course_id, total_fees, duration, industry_field_1, industry_field_2, industry_ref, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssssidsssi", $name, $father, $contact, $email, $college, $course_id, $total_fees, $duration, $f1, $f2, $ref, $_SESSION['user_id']);
     
     if ($stmt->execute()) {
         $sid = $conn->insert_id;
-        logActivity($conn, $_SESSION['user_id'], "Add Student", "Added student: $name (ID: $sid). Total Fees: ₹$total_fees");
-        $message = "<div class='alert alert-success border-0 shadow HUD-alert animate-up'><i class='fas fa-check-circle me-2'></i> Student $name registered successfully.</div>";
+        logActivity($conn, $_SESSION['user_id'], "Add {$lbl['entity']}", "Added {$lbl['entity']}: $name (ID: $sid). Total: ₹$total_fees");
+        $message = "<div class='alert alert-success border-0 shadow HUD-alert animate-up'><i class='fas fa-check-circle me-2'></i> {$lbl['entity']} <strong>$name</strong> registered successfully.</div>";
     } else {
         $message = "<div class='alert alert-danger border-0 shadow HUD-alert animate-up'>Error: " . $conn->error . "</div>";
     }
@@ -57,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $stmt = $conn->prepare("SELECT student_name FROM students WHERE id = ?");
     $stmt->bind_param("i", $sid);
     $stmt->execute();
-    $name = $stmt->get_result()->fetch_assoc()['student_name'] ?? 'Unknown';
+    $res = $stmt->get_result();
+    $name = ($res && $row = $res->fetch_assoc()) ? ($row['student_name'] ?? 'Unknown') : 'Unknown';
 
     if ($conn->query("DELETE FROM students WHERE id = $sid")) {
         logActivity($conn, $_SESSION['user_id'], "Delete Student", "Deleted student: $name (ID: $sid).");
@@ -65,15 +84,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
-// Stats
-$stats = $conn->query("
+$stats_res = $conn->query("
     SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
         SUM(total_fees) as total_val,
         (SELECT SUM(amount) FROM fees) as total_collected
     FROM students
-")->fetch_assoc();
+");
+$stats = ($stats_res && $row = $stats_res->fetch_assoc()) ? $row : ['total' => 0, 'active' => 0, 'total_val' => 0, 'total_collected' => 0];
+
+// Handle cases where non-admins might see stats
+if (!isAdmin()) {
+    $stats['total_val'] = 0;
+    $stats['total_collected'] = 0;
+}
 
 // Fetch Students with Monthly & One-time Status
 $students_query = $conn->query("
@@ -92,14 +117,14 @@ $all_students = [];
 $paid_count = 0;
 $unpaid_count = 0;
 
-while($row = $students_query->fetch_assoc()) {
+while($students_query && $row = $students_query->fetch_assoc()) {
     if($row['current_month_paid'] > 0) $paid_count++; else $unpaid_count++;
     $all_students[] = $row;
 }
 
 $courses_res = $conn->query("SELECT * FROM courses ORDER BY course_name ASC");
 $course_list = [];
-while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
+while($courses_res && $c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
 ?>
 
 <div class="animate-up">
@@ -121,6 +146,7 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
                 </div>
             </div>
         </div>
+        <?php if(isAdmin()): ?>
         <div class="col-md-3">
             <div class="HUD-card p-3 border-start border-4 border-info">
                 <div class="small text-muted text-uppercase fw-bold mb-1" style="font-size: 10px;">Monthly Paid (<?php echo date('M'); ?>)</div>
@@ -135,23 +161,30 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
                 <div class="small text-muted" style="font-size: 10px;">Pending for <?php echo date('F'); ?></div>
             </div>
         </div>
+        <?php endif; ?>
     </div>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold text-dark">Students Directory</h2>
-            <p class="text-muted mb-0">Unified student profile and financial management.</p>
+            <?php
+                $panel_icons = ['school'=>'fa-school','college'=>'fa-university','dispensary'=>'fa-clinic-medical','shop'=>'fa-store','hotel'=>'fa-hotel','restaurant'=>'fa-utensils','inventory'=>'fa-boxes-stacked','company'=>'fa-building','other'=>'fa-users'];
+                $picon = $panel_icons[$btype] ?? 'fa-users';
+            ?>
+            <h2 class="fw-bold text-dark"><i class="fas <?php echo $picon; ?> text-primary me-2"></i><?php echo $lbl['entity']; ?> Directory</h2>
+            <p class="text-muted mb-0">Unified <?php echo strtolower($lbl['entity']); ?> profiles and billing. <span class="badge bg-primary-subtle text-primary rounded-pill px-2 ms-1" style="font-size:10px;"><?php echo strtoupper($btype); ?> PANEL</span></p>
         </div>
         <div class="d-flex gap-2">
+            <?php if(isAdmin()): ?>
             <button class="btn btn-outline-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#paymentDashboardModal">
                 <i class="fas fa-chart-pie me-2"></i>Status Dashboard
             </button>
+            <?php endif; ?>
             <div class="position-relative d-none d-md-block" style="width: 250px;">
                 <i class="fas fa-search position-absolute top-50 translate-middle-y ms-3 text-muted"></i>
-                <input type="text" id="studentSearch" class="form-control ps-5 rounded-pill shadow-sm border-0 bg-white" placeholder="Search students...">
+                <input type="text" id="studentSearch" class="form-control ps-5 rounded-pill shadow-sm border-0 bg-white" placeholder="Search <?php echo strtolower($lbl['entity']); ?>s...">
             </div>
             <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addStudentModal">
-                <i class="fas fa-user-plus me-2"></i>New Entry
+                <i class="fas fa-user-plus me-2"></i>New <?php echo $lbl['entity']; ?>
             </button>
         </div>
     </div>
@@ -167,7 +200,9 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
                             <th class="ps-4 py-3">Profile</th>
                             <th class="py-3">Institute & Course</th>
                             <th class="py-3">Monthly status</th>
+                            <?php if(isAdmin()): ?>
                             <th class="py-3">Financial Status</th>
+                            <?php endif; ?>
                             <th class="pe-4 py-3 text-end">Action</th>
                         </tr>
                     </thead>
@@ -209,6 +244,7 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
                                     <span class="badge <?php echo $regPaid ? 'bg-primary-subtle text-primary' : 'bg-light text-muted'; ?> rounded-pill px-2" style="font-size: 8px;" title="Registration Fee">REG</span>
                                 </div>
                             </td>
+                            <?php if(isAdmin()): ?>
                             <td style="min-width: 160px;">
                                 <div class="d-flex justify-content-between small mb-1">
                                     <span class="text-success fw-bold">₹<?php echo number_format($paid); ?></span>
@@ -219,6 +255,7 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
                                 </div>
                                 <div class="text-muted mt-1" style="font-size: 9px;">Target: ₹<?php echo number_format($row['total_fees']); ?></div>
                             </td>
+                            <?php endif; ?>
                             <td class="pe-4 text-end">
                                 <div class="btn-group shadow-sm rounded-pill overflow-hidden border">
                                     <button class="btn btn-white btn-sm px-3 edit-btn" title="Edit Profile"
@@ -320,66 +357,108 @@ while($c = $courses_res->fetch_assoc()) { $course_list[] = $c; }
   </div>
 </div>
 
-<!-- Modal Structure Update (NetCoders Form Style) -->
+<!-- Dynamic Industry-Aware Registration Form -->
 <div class="modal fade" id="addStudentModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content glass-card border-0 shadow-lg rounded-4">
       <form method="POST" class="HUD-form">
           <input type="hidden" name="action" value="add">
-          <div class="modal-header border-0 p-4">
-            <h5 class="modal-title fw-bold text-dark"><i class="fas fa-user-plus me-2 text-primary"></i>Student Registration</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body p-4 pt-0">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Full Name</label>
-                    <input type="text" name="student_name" class="form-control rounded-3" placeholder="Enter student name" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Guardian Name</label>
-                    <input type="text" name="father_name" class="form-control rounded-3" placeholder="Father/Guardian name" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Primary Contact</label>
-                    <input type="text" name="contact" class="form-control rounded-3" placeholder="10-digit mobile" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Email Address</label>
-                    <input type="email" name="email" class="form-control rounded-3" placeholder="active@email.com">
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Academic Institution</label>
-                    <input type="text" name="college" class="form-control rounded-3" placeholder="College or School name" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Enrolled Course</label>
-                    <select name="course_id" id="course_select" class="form-select rounded-3" required>
-                        <option value="">-- Choose Course --</option>
-                        <?php foreach($course_list as $c): ?>
-                            <option value="<?php echo $c['id']; ?>" data-total="<?php echo $c['total_fee']; ?>"><?php echo htmlspecialchars($c['course_name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Course Value (₹)</label>
-                    <input type="number" name="total_fees" id="total_fees_input" class="form-control rounded-3 fw-bold text-primary" placeholder="0.00" required>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Validity</label>
-                    <select name="duration" class="form-select rounded-3" required>
-                        <option value="30_days">30 Days</option>
-                        <option value="45_days">45 Days</option>
-                        <option value="3_months">3 Months</option>
-                        <option value="6_months">6 Months</option>
-                        <option value="1_year">1 Year</option>
-                    </select>
+          <div class="modal-header border-0 p-4 pb-2">
+            <div>
+                <h5 class="modal-title fw-bold text-dark mb-0">
+                    <i class="fas fa-user-plus me-2 text-primary"></i>
+                    New <?php echo $lbl['entity']; ?> Registration
+                </h5>
+                <div class="text-muted small mt-1">
+                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3" style="font-size:10px;">
+                        <i class="fas <?php echo $picon; ?> me-1"></i><?php echo strtoupper($btype); ?> FORM
+                    </span>
                 </div>
             </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-footer border-0 p-4">
-            <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Dismiss</button>
-            <button type="submit" class="btn btn-primary rounded-pill px-4 shadow">Commit Registration</button>
+          <div class="modal-body p-4">
+
+            <!-- Section 1: Core Identity -->
+            <div class="p-3 mb-3 rounded-3 border" style="background:#f8fafc;">
+                <div class="small fw-bold text-muted text-uppercase mb-3" style="letter-spacing:1px;"><i class="fas fa-id-card me-2 text-primary"></i>Personal Info</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted"><?php echo $lbl['entity']; ?> Full Name</label>
+                        <input type="text" name="student_name" class="form-control rounded-3" placeholder="Enter full name" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted"><?php echo $lbl['ref_label']; ?></label>
+                        <input type="text" name="father_name" class="form-control rounded-3" placeholder="<?php echo $lbl['ref_label']; ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted">Contact Number</label>
+                        <input type="text" name="contact" class="form-control rounded-3" placeholder="Mobile / Phone" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted">Email Address</label>
+                        <input type="email" name="email" class="form-control rounded-3" placeholder="email@domain.com">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Industry-Specific Fields -->
+            <div class="p-3 mb-3 rounded-3 border" style="background:#f0f7ff;">
+                <div class="small fw-bold text-muted text-uppercase mb-3" style="letter-spacing:1px;"><i class="fas fa-tags me-2 text-info"></i><?php echo strtoupper($btype); ?> Details</div>
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold text-muted"><?php echo $lbl['inst_label']; ?></label>
+                        <input type="text" name="college" class="form-control rounded-3" placeholder="<?php echo $lbl['inst_label']; ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted"><?php echo $lbl['field1_label']; ?></label>
+                        <input type="text" name="industry_field_1" class="form-control rounded-3" placeholder="Enter <?php echo $lbl['field1_label']; ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted"><?php echo $lbl['field2_label']; ?></label>
+                        <input type="text" name="industry_field_2" class="form-control rounded-3" placeholder="Enter <?php echo $lbl['field2_label']; ?>">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small fw-bold text-muted">Additional Reference</label>
+                        <input type="text" name="industry_ref" class="form-control rounded-3" placeholder="Optional reference info">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Billing -->
+            <div class="p-3 rounded-3 border" style="background:#fff7ed;">
+                <div class="small fw-bold text-muted text-uppercase mb-3" style="letter-spacing:1px;"><i class="fas fa-wallet me-2 text-warning"></i>Billing & Plan</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-muted">Service / Course</label>
+                        <select name="course_id" id="course_select" class="form-select rounded-3" required>
+                            <option value="">-- Select --</option>
+                            <?php foreach($course_list as $c): ?>
+                                <option value="<?php echo $c['id']; ?>" data-total="<?php echo $c['total_fee']; ?>"><?php echo htmlspecialchars($c['course_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-muted">Total Amount (₹)</label>
+                        <input type="number" name="total_fees" id="total_fees_input" class="form-control rounded-3 fw-bold text-primary" placeholder="0.00" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-muted">Plan Validity</label>
+                        <select name="duration" class="form-select rounded-3" required>
+                            <option value="30_days">30 Days</option>
+                            <option value="45_days">45 Days</option>
+                            <option value="3_months">3 Months</option>
+                            <option value="6_months">6 Months</option>
+                            <option value="1_year">1 Year</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+          </div>
+          <div class="modal-footer border-0 p-4 pt-2">
+            <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary rounded-pill px-5 shadow"><i class="fas fa-check me-2"></i>Register <?php echo $lbl['entity']; ?></button>
           </div>
       </form>
     </div>
