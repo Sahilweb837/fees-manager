@@ -9,9 +9,12 @@ $fee_id = $_GET['id'];
 
 // Fetch fee and student details
 $query = "
-    SELECT f.*, s.student_name, s.father_name, s.contact, s.email, s.college, s.duration, c.course_name, u.username as collector_name 
+    SELECT f.*, s.student_name, s.father_name, s.contact, s.email, s.college, s.duration, c.course_name, 
+           u.username as collector_name,
+           b.branch_name, b.location, b.phone as branch_phone, b.email as branch_email, b.logo_url, b.description 
     FROM fees f 
     JOIN students s ON f.student_id = s.id 
+    LEFT JOIN branches b ON s.branch_id = b.id
     LEFT JOIN courses c ON s.course_id = c.id
     LEFT JOIN users u ON f.collected_by = u.id 
     WHERE f.id = ?
@@ -96,14 +99,25 @@ $invoice = $result->fetch_assoc();
         <div class="row mb-5 align-items-center">
             <div class="col-6">
                 <div class="header-logo">
-                    <img src="https://www.netcoder.in/images/logo.png" alt="NETCODER" crossorigin="anonymous">
+                    <?php if(!empty($invoice['logo_url'])): ?>
+                        <img src="<?php echo htmlspecialchars($invoice['logo_url']); ?>" alt="Logo" crossorigin="anonymous" style="max-width:180px; max-height:80px; object-fit:contain;">
+                    <?php else: ?>
+                        <img src="https://www.netcoder.in/images/logo.png" alt="NETCODER" crossorigin="anonymous">
+                    <?php endif; ?>
                 </div>
                 <div class="mt-2 text-muted small">
-                    <span class="fw-bold text-dark">DHARAMSHALA BRANCH OFFICE</span><br>
-                    Near Govt. ITI, above Gramin Bank Dari,<br>
-                    Dharamshala, Himachal Pradesh (176057)<br>
-                    <i class="fas fa-phone-alt me-1 text-primary"></i> +91 9816732055, 7590832055<br>
-                    <i class="fas fa-envelope me-1 text-primary"></i> info@netcoder.in | <i class="fas fa-globe me-1 text-primary"></i> www.netcoder.in
+                    <span class="fw-bold text-dark"><?php echo strtoupper(htmlspecialchars($invoice['branch_name'] ?? 'DHARAMSHALA BRANCH OFFICE')); ?></span><br>
+                    <?php if (!empty($invoice['location'])): ?>
+                        <?php echo nl2br(htmlspecialchars($invoice['location'])); ?><br>
+                    <?php else: ?>
+                        Near Govt. ITI, above Gramin Bank Dari,<br>
+                        Dharamshala, Himachal Pradesh (176057)<br>
+                    <?php endif; ?>
+                    <i class="fas fa-phone-alt me-1 text-primary"></i> <?php echo htmlspecialchars($invoice['branch_phone'] ?? '+91 9816732055, 7590832055'); ?><br>
+                    <i class="fas fa-envelope me-1 text-primary"></i> <?php echo htmlspecialchars($invoice['branch_email'] ?? 'info@netcoder.in'); ?>
+                    <?php if (!empty($invoice['description'])): ?>
+                        <div class="mt-2 text-muted" style="font-size:0.7rem; font-style:italic; opacity:0.8;"><?php echo htmlspecialchars($invoice['description']); ?></div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="col-6 text-end">
@@ -186,7 +200,10 @@ $invoice = $result->fetch_assoc();
             </div>
             <div class="col-5 text-end">
                 <div class="mb-3">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=NC-INV-<?php echo $invoice['id']; ?>" class="rounded border p-1" alt="Verification QR">
+                    <?php 
+                        $qr_data = "INV-" . $invoice['id'] . "|Amt:" . $invoice['amount'] . "|Date:" . date('Y-m-d', strtotime($invoice['date_collected'])); 
+                    ?>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=<?php echo urlencode($qr_data); ?>" class="rounded border p-1" alt="Verification QR">
                 </div>
                 <div class="info-label">Authorized By</div>
                 <div class="fw-bold text-dark"><?php echo strtoupper($invoice['collector_name']); ?></div>

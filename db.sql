@@ -28,6 +28,8 @@ CREATE TABLE `branches` (
   `location`      VARCHAR(255)  DEFAULT NULL,
   `phone`         VARCHAR(20)   DEFAULT NULL,
   `email`         VARCHAR(100)  DEFAULT NULL,
+  `logo_url`      VARCHAR(255)  DEFAULT NULL,
+  `description`   TEXT          DEFAULT NULL,
   `is_active`     TINYINT(1)    NOT NULL DEFAULT 1,
   `created_at`    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)

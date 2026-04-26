@@ -27,6 +27,10 @@ if (isset($_SESSION['user_id'])) {
 require_once 'includes/db.php';
 
 $error = "";
+$is_central_redirect = isset($_GET['redirect']) && $_GET['redirect'] === 'central';
+if ($is_central_redirect && empty($error)) {
+    $error = "Please login using the Central Admin portal.";
+}
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST['username']);
@@ -407,6 +411,8 @@ function selectIndustry(type, element) {
 const preSelected = document.getElementById('industry_type').value;
 if (preSelected) {
     selectIndustry(preSelected, null);
+} else if (<?php echo $is_central_redirect ? 'true' : 'false'; ?>) {
+    selectIndustry('central', document.querySelector('.industry-tile[onclick*="central"]'));
 }
 
 document.getElementById('loginForm').addEventListener('submit', function(e) {

@@ -6,7 +6,8 @@ require_once 'db.php';
 if (!isset($_SESSION['user_id'])) {
     $depth  = substr_count($_SERVER['PHP_SELF'], '/') - 2;
     $prefix = str_repeat('../', max(0, $depth));
-    header("Location: {$prefix}index.php");
+    $redirect_param = (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) ? '?redirect=central' : '';
+    header("Location: {$prefix}index.php{$redirect_param}");
     exit();
 }
 
