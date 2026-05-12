@@ -1,13 +1,16 @@
 <?php
+// Enable mysqli exceptions so we can catch them cleanly
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 $host = "localhost";
-$user = "root";
-$pass = "";
-$dbname = "fees_management";
+$user = "mhqhxuaasp"; // Update this with Cloudways Database Username
+$pass = "4m3xU8bTVq"; // Update this with Cloudways Database Password
+$dbname = "mhqhxuaasp"; // Update this with Cloudways Database Name
 
-$conn = new mysqli($host, $user, $pass, $dbname);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+try {
+    $conn = new mysqli($host, $user, $pass, $dbname);
+} catch (mysqli_sql_exception $e) {
+    die("Database Connection failed: " . $e->getMessage() . "<br><br><b>Note:</b> If you are on Cloudways, make sure to update the database credentials in <code>includes/db.php</code>.");
 }
 
 // Function to log activity
