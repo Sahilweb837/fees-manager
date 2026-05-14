@@ -1,16 +1,26 @@
 <?php
-// 1. Configure session BEFORE starting it
-ini_set('session.cookie_path', '/'); // Ensure session works across all folders
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_samesite', 'Lax');
-
-// 2. Start session if not already started
+// 1. Enhanced Session Configuration for Live Servers
 if (session_status() === PHP_SESSION_NONE) {
+    // Force session to use cookies and set global path
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.use_strict_mode', 1);
+    
+    // Auto-detect secure cookie status
+    $is_secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443);
+    
+    session_set_cookie_params([
+        'lifetime' => 0, // Session cookie
+        'path'     => '/',
+        'domain'   => $_SERVER['HTTP_HOST'],
+        'secure'   => $is_secure,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    
     session_start();
 }
 
-// Enable mysqli exceptions so we can catch them cleanly
+// Enable mysqli exceptions
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $host = "localhost";
