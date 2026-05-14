@@ -329,7 +329,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="login-wrapper">
     <div class="login-card">
         <div class="login-header">
-            <h2><i class="fas fa-layer-group me-2"></i>Select Portal & Login</h2>
+            <h2><i class="fas fa-layer-group me-2"></i>Selects Portal & Login</h2>
         </div>
 
         <div class="login-body">
