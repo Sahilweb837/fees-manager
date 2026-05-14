@@ -1,8 +1,14 @@
 <?php
-// Set standard cookies for cross-domain/redirect stability
+// 1. Configure session BEFORE starting it
+ini_set('session.cookie_path', '/'); // Ensure session works across all folders
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_samesite', 'Lax');
+
+// 2. Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Enable mysqli exceptions so we can catch them cleanly
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);

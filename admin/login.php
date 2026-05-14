@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '../includes/db.php';
 
 // If already logged in as super_admin, go to dashboard
 if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'super_admin') {
@@ -9,11 +9,9 @@ if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'super_admin') {
 
 // If logged in as someone else, redirect them out
 if (isset($_SESSION['user_id']) && $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../index.php");
+    header("Location: " . APP_URL . "/index.php");
     exit();
 }
-
-require_once '../includes/db.php';
 
 $error = "";
 
