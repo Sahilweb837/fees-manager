@@ -5,6 +5,7 @@ $btype         = $_SESSION['business_type'] ?? 'other';
 $industry_colors = [
     'school'     => ['primary' => '#3b82f6', 'name' => 'School ERP'],
     'college'    => ['primary' => '#6366f1', 'name' => 'College ERP'],
+    'institute'  => ['primary' => '#8b5cf6', 'name' => 'Institute ERP'],
     'dispensary' => ['primary' => '#14b8a6', 'name' => 'Clinic'],
     'hotel'      => ['primary' => '#8b5cf6', 'name' => 'Hotel'],
     'shop'       => ['primary' => '#f59e0b', 'name' => 'Shop'],
@@ -163,7 +164,7 @@ list($r,$g,$b) = sscanf($accent, "#%02x%02x%02x");
                         </li>
                         <li><a class="dropdown-item rounded-2 py-2 small" href="#"><i class="fas fa-user-circle me-2 text-muted"></i>My Profile</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item rounded-2 py-2 small text-danger" href="<?php echo strpos($_SERVER['PHP_SELF'],'/admin/') !== false || strpos($_SERVER['PHP_SELF'],'/pages/') !== false || strpos($_SERVER['PHP_SELF'],'/staff/') !== false ? '../' : ''; ?>pages/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        <li><a class="dropdown-item rounded-2 py-2 small text-danger" href="<?php echo defined('APP_URL') ? APP_URL : ''; ?>/pages/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
                     </ul>
                 </div>
             </div>

@@ -17,9 +17,8 @@ $industry_config = [
 ];
 $icfg = $industry_config[$btype] ?? $industry_config['other'];
 
-// Determine path prefix (are we in subfolder or pages/ ?)
-$in_subfolder = in_array($current_dir, ['school','college','restaurant','hotel','shop','dispensary','inventory','admin','pages','staff']);
-$prefix = $in_subfolder ? '../' : './';
+// We will use absolute paths with APP_URL to prevent relative path breakage on live servers
+$base_url = defined('APP_URL') ? APP_URL : '';
 ?>
 <!-- Sidebar -->
 <div class="sidebar-wrapper" id="sidebar-wrapper">
@@ -38,63 +37,63 @@ $prefix = $in_subfolder ? '../' : './';
 
         <?php /* ── SUPER ADMIN LINKS ── */ if ($role === 'super_admin'): ?>
         <div class="sidebar-section-label">Global Control</div>
-        <a href="<?php echo $prefix; ?>admin/index.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'index.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/admin/index.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'index.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
             <i class="fas fa-shield-halved"></i>Admin Dashboard
         </a>
-        <a href="<?php echo $prefix; ?>admin/branches.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'branches.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/admin/branches.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'branches.php') ? 'active' : ''; ?>">
             <i class="fas fa-building"></i>Manage Branches
         </a>
-        <a href="<?php echo $prefix; ?>admin/users.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'users.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/admin/users.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'users.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
             <i class="fas fa-users-gear"></i>System Users
         </a>
-        <a href="<?php echo $prefix; ?>admin/students.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'students.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/admin/students.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'students.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
             <i class="fas fa-users-viewfinder"></i>All Records
         </a>
-        <a href="<?php echo $prefix; ?>admin/fees.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'fees.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/admin/fees.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'fees.php' && $current_dir == 'admin') ? 'active' : ''; ?>">
             <i class="fas fa-chart-line"></i>Global Revenue
         </a>
-        <a href="<?php echo $prefix; ?>admin/logs.php" class="list-group-item list-group-item-action <?php echo $current_page == 'logs.php' ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/admin/logs.php" class="list-group-item list-group-item-action <?php echo $current_page == 'logs.php' ? 'active' : ''; ?>">
             <i class="fas fa-history"></i>Audit Logs
         </a>
 
         <?php /* ── BRANCH ADMIN LINKS ── */ elseif ($role === 'admin'): ?>
         <div class="sidebar-section-label"><?php echo $icfg['label']; ?></div>
-        <a href="<?php echo $prefix . $btype; ?>/dashboard.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/dashboard.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
             <i class="fas fa-gauge-high"></i>Dashboard
         </a>
-        <a href="<?php echo $prefix . $btype; ?>/members.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'members.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/members.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'members.php') ? 'active' : ''; ?>">
             <i class="fas fa-users"></i><?php echo $icfg['entity']; ?>
         </a>
-        <a href="<?php echo $prefix . $btype; ?>/payments.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'payments.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/payments.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'payments.php') ? 'active' : ''; ?>">
             <i class="fas fa-wallet"></i>Payments
         </a>
         <div class="sidebar-section-label">Administration</div>
-        <a href="<?php echo $prefix . $btype; ?>/users.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'users.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/users.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'users.php') ? 'active' : ''; ?>">
             <i class="fas fa-user-tie"></i>My Staff
         </a>
-        <a href="<?php echo $prefix . $btype; ?>/courses.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'courses.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/courses.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'courses.php') ? 'active' : ''; ?>">
             <i class="fas fa-book-open"></i>
             <?php echo in_array($btype, ['restaurant','hotel']) ? 'Services/Menus' : (($btype == 'shop') ? 'Products' : 'Courses'); ?>
         </a>
-        <a href="<?php echo $prefix; ?>pages/expenses.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'expenses.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/pages/expenses.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'expenses.php') ? 'active' : ''; ?>">
             <i class="fas fa-file-invoice-dollar"></i>Expenses
         </a>
-        <a href="<?php echo $prefix; ?>pages/attendance.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'attendance.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/pages/attendance.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'attendance.php') ? 'active' : ''; ?>">
             <i class="fas fa-calendar-check"></i>Attendance
         </a>
 
         <?php /* ── EMPLOYEE LINKS ── */ else: ?>
         <div class="sidebar-section-label">My Panel</div>
-        <a href="<?php echo $prefix . $btype; ?>/dashboard.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/dashboard.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
             <i class="fas fa-gauge-high"></i>Dashboard
         </a>
-        <a href="<?php echo $prefix . $btype; ?>/members.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'members.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/members.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'members.php') ? 'active' : ''; ?>">
             <i class="fas fa-users"></i><?php echo $icfg['entity']; ?>
         </a>
-        <a href="<?php echo $prefix . $btype; ?>/payments.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'payments.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/<?php echo $btype; ?>/payments.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'payments.php') ? 'active' : ''; ?>">
             <i class="fas fa-wallet"></i>Collect Payment
         </a>
-        <a href="<?php echo $prefix; ?>pages/attendance.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'attendance.php') ? 'active' : ''; ?>">
+        <a href="<?php echo $base_url; ?>/pages/attendance.php" class="list-group-item list-group-item-action <?php echo ($current_page == 'attendance.php') ? 'active' : ''; ?>">
             <i class="fas fa-calendar-check"></i>Attendance
         </a>
         <?php endif; ?>

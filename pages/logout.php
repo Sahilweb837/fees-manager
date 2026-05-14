@@ -7,6 +7,6 @@ if (isset($_SESSION['user_id'])) {
 }
 
 session_destroy();
-header("Location: ../index.php");
+header("Location: " . APP_URL . "/index.php");
 exit();
 ?>

@@ -8,19 +8,21 @@ if (isset($_SESSION['user_id'])) {
     $panel_map = [
         'school'     => 'school/dashboard.php',
         'college'    => 'college/dashboard.php',
+        'institute'  => 'institute/dashboard.php',
         'dispensary' => 'dispensary/dashboard.php',
         'hotel'      => 'hotel/dashboard.php',
         'shop'       => 'shop/dashboard.php',
         'restaurant' => 'restaurant/dashboard.php',
         'inventory'  => 'inventory/dashboard.php',
+        'company'    => 'company/dashboard.php',
         'other'      => 'pages/dashboard.php',
     ];
     if ($r == 'super_admin') {
-        header("Location: admin/index.php"); exit();
+        header("Location: " . APP_URL . "/admin/index.php"); exit();
     } else if (isset($panel_map[$t])) {
-        header("Location: " . $panel_map[$t]); exit();
+        header("Location: " . APP_URL . "/" . $panel_map[$t]); exit();
     } else {
-        header("Location: pages/dashboard.php"); exit();
+        header("Location: " . APP_URL . "/pages/dashboard.php"); exit();
     }
 }
 
@@ -73,20 +75,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $panel_map = [
                         'school'     => 'school/dashboard.php',
                         'college'    => 'college/dashboard.php',
+                        'institute'  => 'institute/dashboard.php',
                         'dispensary' => 'dispensary/dashboard.php',
                         'hotel'      => 'hotel/dashboard.php',
                         'shop'       => 'shop/dashboard.php',
                         'restaurant' => 'restaurant/dashboard.php',
                         'inventory'  => 'inventory/dashboard.php',
+                        'company'    => 'company/dashboard.php',
                         'other'      => 'pages/dashboard.php',
                     ];
 
                     if ($row['role'] === 'super_admin') {
-                        header("Location: admin/index.php");
+                        header("Location: " . APP_URL . "/admin/index.php");
                     } elseif (isset($panel_map[$actual_industry])) {
-                        header("Location: " . $panel_map[$actual_industry]);
+                        header("Location: " . APP_URL . "/" . $panel_map[$actual_industry]);
                     } else {
-                        header("Location: pages/dashboard.php");
+                        header("Location: " . APP_URL . "/pages/dashboard.php");
                     }
                     exit();
                 }
@@ -343,10 +347,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="industry-tile" onclick="selectIndustry('central', this)" style="border-color:rgba(255,215,0,0.5);"><i class="fas fa-shield-halved" style="color:#ffd700;"></i><span style="color:#ffd700;">Central Admin</span></div>
                     <div class="industry-tile" onclick="selectIndustry('school', this)"><i class="fas fa-school"></i><span>School</span></div>
                     <div class="industry-tile" onclick="selectIndustry('college', this)"><i class="fas fa-university"></i><span>College</span></div>
+                    <div class="industry-tile" onclick="selectIndustry('institute', this)"><i class="fas fa-building-columns"></i><span>Institute</span></div>
                     <div class="industry-tile" onclick="selectIndustry('hotel', this)"><i class="fas fa-hotel"></i><span>Hotel</span></div>
                     <div class="industry-tile" onclick="selectIndustry('dispensary', this)"><i class="fas fa-clinic-medical"></i><span>Clinic</span></div>
                     <div class="industry-tile" onclick="selectIndustry('shop', this)"><i class="fas fa-store"></i><span>Shop</span></div>
                     <div class="industry-tile" onclick="selectIndustry('restaurant', this)"><i class="fas fa-utensils"></i><span>Restaurant</span></div>
+                    <div class="industry-tile" onclick="selectIndustry('company', this)"><i class="fas fa-building-user"></i><span>Company Staff</span></div>
                     <div class="industry-tile" onclick="selectIndustry('other', this)"><i class="fas fa-briefcase"></i><span>Other</span></div>
                 </div>
 

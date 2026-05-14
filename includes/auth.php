@@ -4,10 +4,10 @@ require_once 'db.php';
 
 // ─── Redirect to login if not authenticated ───────────────────────
 if (!isset($_SESSION['user_id'])) {
-    $depth  = substr_count($_SERVER['PHP_SELF'], '/') - 2;
-    $prefix = str_repeat('../', max(0, $depth));
     $redirect_param = (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) ? '?redirect=central' : '';
-    header("Location: {$prefix}index.php{$redirect_param}");
+    
+    // Redirect using absolute site root based on APP_URL defined in db.php
+    header("Location: " . APP_URL . "/index.php{$redirect_param}");
     exit();
 }
 
@@ -90,6 +90,7 @@ function generateEmployeeId(mysqli $conn, string $business_type, string $role): 
     $prefixes = [
         'school'     => 'SCH',
         'college'    => 'COL',
+        'institute'  => 'INS',
         'restaurant' => 'REST',
         'hotel'      => 'HTL',
         'shop'       => 'SHP',
@@ -118,6 +119,7 @@ function generateEntityId(mysqli $conn, string $business_type): string {
     $map = [
         'school'     => 'SCH',
         'college'    => 'COL',
+        'institute'  => 'INS',
         'restaurant' => 'REST',
         'hotel'      => 'HTL',
         'shop'       => 'SHP',
